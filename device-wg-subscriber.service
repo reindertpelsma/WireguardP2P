@@ -1,0 +1,12 @@
+[Unit]
+Description=WireGuard Subscriber (Remote device)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/device_wg_subscriber.py --iface wg0 --vps-api http://192.168.20.2:8080/api/peers --token-file /etc/wg-subscriber/token.txt --poll 3 --keepalive 10
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target

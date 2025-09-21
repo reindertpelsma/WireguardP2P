@@ -1,0 +1,12 @@
+[Unit]
+Description=WireGuard Publisher (public server) - binds to WG IP only
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/server_wg_publisher.py --interface wg0 --bind-ip 192.168.20.2 --port 8080 --token-file /etc/wg-publisher/token.txt --exclude-peer REMOTE_DEVICE_PUBLIC_KEY 
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target
