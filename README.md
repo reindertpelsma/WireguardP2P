@@ -8,7 +8,7 @@ This github project provides simple python scripts to set up a direct P2P Wiregu
 You still need the linux server (public server) with inbound connections (like a small VPS in the cloud) but it will only be used for bootstrapping the connection.
 
 # How it works
-The server that accepts inbound connection is called the Public server, and the device behind firewall is called the Remote Device. This setup makes use of the fact that wireguard clients can connect to two peers simulatenously with one config, a unique property that is not present in many other VPN clients like OpenVPN
+The server that accepts inbound connection is called in this project the Public server as its firewall is open to the internet, and the device behind firewall is called the Remote Device as its the device you want to connect to. This setup makes use of the fact that wireguard clients can connect to two peers simulatenously with one config, a unique ability that is not present in many other VPN clients like OpenVPN
 
 THe clients create a outbound wireguard connection with the public server using its first peer, while the second peer is used to send a UDP packet to the remote device's endpoint. The python script on this server (wg publisher) will record the client's endpoint IP + port and send it to the remote device's python script (wg subscriber), which will then update its wireguard peer endpoint, so that a packet is send out and a port through the firewall is punched and a connection is established.
 
