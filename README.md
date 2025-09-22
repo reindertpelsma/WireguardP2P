@@ -168,7 +168,7 @@ In the case of P2P the outbound connection state is needed on both firewalls of 
 To prevent sending packets to clients that are disconnected for a while, a timer of by default 120 seconds since the last wireguard handshake will purge the PersistentKeepalive, as wireguard handshakes are usually every 2 minutes.
 
 ## Reliable port forward
-To establish a more reliable connection you can obviosuly attempt to port forward. You probably already checked that port forward was not possible on the remote device networks otherwise you already have inbound connections, but sometimes it is possible to port forward on the clients side.
+To establish a more reliable connection you can attempt to port forward on the client side. You probably already checked that port forward was not possible on the remote device networks otherwise you already had inbound connections, but sometimes it is possible to port forward on the clients side.
 
 This is especially useful if the client is primarily connecting from a specific network like a home network, and doing this will not remove the ability to roam to other networks. You can hardcode a port forward in your home's router using its routers web interface provided by the ISP or if you do not have access to it you can check if a port forward is possible through UPnP, NAT-PMP or PCP as many home routers have any of those three protocols exposed and sometimes an enterprise network exposes it too.
 
