@@ -143,6 +143,8 @@ While this setup does provide great performance and reliability when connected, 
 
 If the user is behind Symmetric NAT, meaning its external source port is randomized for every different UDP connection state, then the published endpoint of the user will not match with the endpoint the remote device needs, and the P2P will fail. It is not possible to establish P2P with symmetric NAT, other than brute forcing ports which is impractical. Symmetric NAT is pretty rare as most implementations will attempt to use the same external source port as chosen by the client (i.e Normal NAT), unless it conflicts with an existing state and only then it will randomize due to port collision resolution (like linux's iptables which many routers use under the hood). There are only a few implementations that always do port randomization by default thus Symmetric NAT, like Pfsense.
 
+It seems that cellular networks have the highest chance to use Symmetric NAT, enterprise networks have a moderate chance, while home networks have a very low chance. Here in the netherlands, Symmetric NAT seems to be rare on cellular. To find more about this topic, [read this useful paper](https://arxiv.org/pdf/2311.04658).
+
 If the remote device is behind a router that uses port randomization but its consistent across multiple UDP connections, then P2P will still fail. If only the client is behind such a NAT, then the connection just succeeds, as it is not a requirement that the ListeningPort matches the port the python scripts registers. This is therefore extremely rare, and most implementations either just keep the source port or randomize it for every state.
 
 If the remote device or client does NOT have NAT but is still behind a firewall that blocks inbound connections, for example in networks where clients directly get a public IPv4 assigned, then in that case you are lucky as P2P have even a higher chance to succeed. You do not need any extra configuration on clients or remote device for networks without NAT.
@@ -157,6 +159,41 @@ It should be unique across all your clients, to prevent port collision resolutio
 .
 ## Shared router
 If the user and the remote device share on router, and this router blocks connections between internal networks, then the P2P will fails. For example if both devices are connected to the same cellular network or CG-NAT. In that case the proxied config is the only solution.
+
+## Double persistent keepalive and stale peers
+In regular wireguard to a server with inbound connections persistent keepalive of the recommended 25 seconds is only used if a client needs to receive packets (like inbound connections to client or long lived TCP sessions) after the tunnel went silent for more than 30 seconds (default UDP timeout), and only the client has to send these keepalive packets usually as the server should not send packets anymore if a client disconnects from the server. 
+
+In the case of P2P the outbound connection state is needed on both firewalls of the client and remote device, meaning that if the state is purged then all connectivity will be lost. In addition to this, if a client roams between networks both peers need to send a packet to the other endpoint to punch hole a new state, so a PersistentKeepalive is also added by the python script on the remote device.
+
+To prevent sending packets to clients that are disconnected for a while, a timer of by default 120 seconds since the last wireguard handshake will purge the PersistentKeepalive, as wireguard handshakes are usually every 2 minutes.
+
+## Reliable port forward
+To establish a more reliable connection you can obviosuly attempt to port forward. You probably already checked that port forward was not possible on the remote device networks otherwise you already have inbound connections, but sometimes it is possible to port forward on the clients side.
+
+This is especially useful if the client is primarily connecting from a specific network like a home network, and doing this will not remove the ability to roam to other networks. You can hardcode a port forward in your home's router using its routers web interface provided by the ISP or if you do not have access to it you can check if a port forward is possible through UPnP, NAT-PMP or PCP as many home routers have any of those three protocols exposed and sometimes an enterprise network exposes it too.
+
+Example if the client port is 36906
+```bash
+# UPnP (miniupnpc)
+sudo apt install miniupnpc
+upnpc -a 192.168.1.100 36906 36906 UDP      # add
+upnpc -l                                   # list
+upnpc -d 36906 UDP                         # delete
+
+# NAT-PMP
+sudo apt install natpmpc
+natpmpc -a 36906 36906 udp 3600            # add 1-hour mapping
+natpmpc -a 36906 36906 udp 0               # remove
+
+# PCP (build libpcpnatpmp and use CLI)
+git clone https://github.com/libpcpnatpmp/libpcpnatpmp.git
+# build per INSTALL.md, then (example)
+./cli-client/pcp-client map --proto udp --internal 192.168.1.100 --internal-port 36906 --external-port 36906 --lifetime 3600
+```
+
+Don't forget to allow the port in the client's device, if it has a firewall. 
+
+You do not need to hardcode the client's endpoint IP+port in the remote device's config as this will be auto-discovered. One problem that may occur is that the source port to the public server may have been randomized, meaning that the auto discovered endpoint is incorrect. The simple solution if you are behind Symmetric NAT is to create a seperate peer like 'my laptop at home' where the endpoint IP+port is hardcoded in the remote device, and the peer is added to `--exclude-peer`, don't forget that server side PersistentKeepalive is still relevant. Then you can keep an additional 2 configs for P2P and proxied/relayed in case you roam to other networks. Future work could include an update endpoint that a client can invoke to set its endpoint correctly and a python script optionally for the client to automatically test port forwarding through UPnP, nat-pmp or PCP.
 
 # Security
 All traffic is end-to-end encrypted with Wireguard between clients and both the public server and the remote device, and UDP punch hole packets are only sent when authorized wireguard clients connect. The python API server to discover endpoints should be ONLY listening on the wireguard interface and ONLY accept connections over the wireguard tunnel from the remote device and should not be exposed to the internet. It is indeed run over http:// but this is not an issue if the connection between the public server and remote device is already encrypted by wireguard. In case someone else on the network could reach this API server, a token.txt is placed to guard access.
