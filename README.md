@@ -1,21 +1,25 @@
 # WireguardP2P
 Setting up a wireguard connection (VPN) to your device(s) is difficult if its behind NAT or a firewall that blocks inbound connections. This often happens because your device is behind a network like CG-NAT that is not controlled by you, like on cellular.
 
-Its relatively easy to set up a wireguard server on a linux server that has inbound connections and let clients connect to that server instead of to the device(s). However this has a big disadvantage and that is that your traffic is routed through another server instead of directly to the device. This will cost your latency and performance.
+This project provides a simple python script to directly connect to your device using [UDP Port Punching](https://en.wikipedia.org/wiki/UDP_hole_punching).
 
-This github project provides simple python scripts to set up a direct P2P Wireguard connection (similar to WebRTC/Bittorrent, using [UDP Port Punching](https://en.wikipedia.org/wiki/UDP_hole_punching)) to a device that is behind Firewall/NAT, without any kind of config changes on the client or install Python on the client at al. The only thing that is needed is the regular Wireguard client. 
+If the client IP and server IP are known in advance you can hardcode them both and use [these steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection, but that does not allow your client to roam for example between your home network, company's wifi and cellular. This python project dynamically discovers the client IP + port using a third server (the public server) allowing the client to roam between betworks.
+
+It stands out of any other P2P implementation like [manuels/wireguard-p2p](https://github.com/manuels/wireguard-p2p) as it does not require installing extra software on the client beside the already widely cross platform compatible wireguard client, it just uses some simple wireguard config tricks on the client. This makes the setup on the clients far easier.
 
 You still need the linux server (public server) with inbound connections (like a small VPS in the cloud) but it will only be used for bootstrapping the connection.
 
 # How it works
-The server that accepts inbound connection is called in this project the Public server as its firewall is open to the internet, and the device behind firewall is called the Remote Device as its the device you want to connect to. This setup makes use of the fact that wireguard clients can connect to two peers simulatenously with one config, a unique ability that is not present in many other VPN clients like OpenVPN
+The server that accepts inbound connection is called in this project the Public server as its firewall is open to the internet, and the device behind firewall is called the Remote Device as its the device you want to connect to. 
 
-THe clients create a outbound wireguard connection with the public server using its first peer, while the second peer is used to send a UDP packet to the remote device's endpoint. The python script on this server (wg publisher) will record the client's endpoint IP + port and send it to the remote device's python script (wg subscriber), which will then update its wireguard peer endpoint, so that a packet is send out and a port through the firewall is punched and a connection is established.
+Wireguard has the unique ability that a client can connect to multiple peers simultaneously. Every client has 1 peer to the Public server and a peer for every remote device a P2P connection needs to be set up.
+
+The clients create a outbound wireguard connection with the public server using its first peer, while the other peers are in first place primarily used to send a random UDP packet to the remote device endpoints. The python script on this server (wg publisher) will record the client's endpoint IP + port and send it to the remote device's python script (wg subscriber), which will then update its wireguard peer endpoint. This will trigger a packet to be send out to the client creating a UDP punch hole resulting in a fast P2P connection.
 
 # Setup
 
-First follow the regular wireguard setup to set up a permanent tunnel between the public server and the remote device.  Use persistent keepalive to ensure the tunnel stays alive behind the remote device's firewall.
-Then add client configs that connect to both the public server and your remote device public IP:port (2 peers).
+First generate wireguard private and public key pairs for the public server, all remote devices and all clients.  Use persistent keepalive to ensure the tunnel stays alive behind firewalls.
+Then use the following config templates:
 
 ## Wireguard config on the public server
 
@@ -27,6 +31,7 @@ ListenPort=51820
 PostUp = /etc/wg-publisher/routes-up.sh
 PostDown = /etc/wg-publisher/routes-down.sh
 
+# This remote device handles all 0.0.0.0/0 traffic, but you can add more remote devices and device which subnets apply for each one of them.
 [Peer]
 PublicKey=PUBLIC_KEY_REMOTE_DEVICE
 AllowedIPs=0.0.0.0/0
@@ -120,6 +125,8 @@ As told, you do not have to install anything else besides these two wireguard co
 
 The python scripts are usually put in /etc/wg-publisher for wg-publisher (public server) and /etc/wg-subscriber for wg-subscriber (remote device), and the service files can be put in /etc/systemd/system. A random token should be put in /etc/wg-publisher/token.txt or /etc/wg-subscriber/token.txt, e.g generated with `head -c 32 /dev/urandom  | base64`.
 
+In wg-publisher.service you should put a `--exclude-peer` for every public key of a remote device, as their endpoints do not need to be advertised.
+
 Then you initiate the wireguard tunnels and start the python sripts. Clients can now connect with the P2P wireguard config, which should work if the client and server are not behind Symmetric NAT (see reliability), otherwise you can use the proxied config instead.
 
 ## Multiple remote devices
@@ -140,10 +147,10 @@ If the user is behind Symmetric NAT, meaning its external source port is randomi
 
 If the remote device is behind a router that uses port randomization but its consistent across multiple UDP connections, then P2P will still fail. If only the client is behind such a NAT, then the connection just succeeds, as it is not a requirement that the ListeningPort matches the port the python scripts registers. This is therefore extremely rare, and most implementations either just keep the source port or randomize it for every state.
 
-If the remote device or client does NOT have NAT but is still behind a firewall that blocks inbound connections, then it is for P2P the same NAT as one that keeps source ports consistent and without port collision resolution.
+If the remote device or client does NOT have NAT but is still behind a firewall that blocks inbound connections, for example in networks where clients directly get a public IPv4 assigned, then in that case you are lucky as P2P have even a higher chance to succeed. You do not need any extra configuration on clients or remote device for networks without NAT.
 
 ## IPv6
-If IPv6 is tunneled inside the wireguard tunnel, then it has no effect on the setup. If IPv6 is used as wireguard endpoints, then this project can still be relevant. Even though IPv6 usually does not use NAT, many still block inbound connections, which can be punch holed to establish a P2P connection. The project has not been tested with IPv6.
+If IPv6 is tunneled inside the wireguard tunnel, then it has no effect on the setup. If IPv6 is used as wireguard endpoints, then this project can still be relevant. Even though IPv6 usually does not use NAT, many still block inbound connections, which can be punch holed to establish a P2P connection. Because IPv6 does not have NAT makes IPv6 better suited for P2P. The project has not been tested with IPv6.
 
 ## Hardcoding listening port
 It is recommended to hardcode a listening port on the client. This ensures that the client uses the same source port when connecting to both peers (public server and remote device) so the client endpoint matches, despite the fact that most implementations keep the randomized source port consistent across multiple peers when ListeningPort is not specified, its better to fix it as wireguard protocol itself does not explicitly mandate that the source port should be consistent when ListeningPort is not defined.
