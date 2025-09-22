@@ -26,8 +26,6 @@ Then use the following config templates:
 PrivateKey=PRIVATE_KEY_PUBLIC_SERVER
 Address=192.168.20.2/24, 192.168.19.2/24
 ListenPort=51820
-PostUp = /etc/wg-publisher/routes-up.sh
-PostDown = /etc/wg-publisher/routes-down.sh
 
 # This remote device handles all 0.0.0.0/0 traffic, but you can add more remote devices and device which subnets apply for each one of them.
 [Peer]
@@ -137,6 +135,8 @@ For this setup to work the public IP of the remote device (i.e what is my IP) an
 
 ## Roaming
 If the client moves from network to network (i.e its IP update), the P2P connection will be temporarily lost. To ensure a stable connecition, keeping the keepalive intervals short to 10 seconds is crucial on both ends. If a client does move, the endpoint to the public server will update due to wireguard's roaming feature. The public server will record this new endpoint and send this endpoint to the remote device which will re-send a Wireguard handshake packet to the new endpoint, and as the client is also continously sending out packets every few seconds, a P2P connection will be re-established automatically.
+
+The time it takes to re-establish a connection is dependent on the poll intervall of the python script and the KeepAlive interval of the wireguard configs (to both the public server and remote device, on both client config and as set by the python script), whichever is the longest is the maximum time it can take to re-establish a connection, its therefore important to keep them all under 10 seconds.
 
 ## NAT types
 While this setup does provide great performance and reliability when connected, it does not always guarantee the remote user can use this P2P connection from every kind of connection. This is because how NAT should be performed is not defined and there are many implementations of NAT, most of them are classified by [STUN](https://en.wikipedia.org/wiki/STUN)
