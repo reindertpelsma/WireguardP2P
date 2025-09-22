@@ -1,83 +1,99 @@
 # Example firewall and routing rules
 
-This is an example list of rules/firewalls you can apply to ensure both the P2P and the proxied config and clients are isolated.
+This is an example list of firewall and routing rules you can apply to ensure both the P2P and the proxied configs and clients are isolated. Feel free to adapt these to any firewall tool you prefer.
 
-On the public server add the following to its wg config and restart wg:
- 
-```
+On the public server add the following to its WireGuard config and restart WireGuard:
+
+```ini
 [Interface]
 ...
-Tables=off 
+Tables=off
 PostUp = /etc/wg-publisher/routes-up.sh
 PostDown = /etc/wg-publisher/routes-down.sh
 ```
 
-Then apply the following iptables rules on the public server
+Then apply the following `iptables` rules on the public server:
 
 ```bash
 sudo bash -c 'echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf && sysctl -p'
 sudo iptables -N WIREGUARD_FORWARD
 sudo iptables -A WIREGUARD_FORWARD -p icmp -j ACCEPT
 sudo iptables -A WIREGUARD_FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+# Allow traffic to the device and server IPs
 sudo iptables -A WIREGUARD_FORWARD -d 192.168.19.1 -j ACCEPT
 sudo iptables -A WIREGUARD_FORWARD -d 192.168.20.1 -j ACCEPT
 sudo iptables -A WIREGUARD_FORWARD -d 192.168.19.2 -j ACCEPT
 sudo iptables -A WIREGUARD_FORWARD -d 192.168.20.2 -j ACCEPT
+# Reject traffic between wireguard clients
 sudo iptables -A WIREGUARD_FORWARD -d 192.168.19.0/24 -j REJECT
 sudo iptables -A WIREGUARD_FORWARD -d 192.168.20.0/24 -j REJECT
 sudo iptables -A WIREGUARD_FORWARD -j ACCEPT
-sudo iptables -A FORWARD -i wg0 -o wg0 -j WIREGUARD_FORWARD 
+sudo iptables -A FORWARD -i wg0 -o wg0 -j WIREGUARD_FORWARD
 sudo iptables -P FORWARD DROP
 sudo iptables -A INPUT -i lo -j ACCEPT
 sudo iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
-sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT # if you want to have secure SSH access to your VPS. Its generally safe to expose pubkey SSH to WAN.
+sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT  # allow SSH (pubkey recommended)
 sudo iptables -A INPUT -p udp --dport 51820 -j ACCEPT
-sudo iptables -A INPUT -i wg0 -p tcp --dport 8080 -s 192.168.20.1 -d 192.168.20.2 -j ACCEPT # this is the HTTP endpoint that advertises wireguard endpoints for P2P.
-sudo iptables -A INPUT -p icmp -j ACCEPT # if you want pings from WAN
+sudo iptables -A INPUT -i wg0 -p tcp --dport 8080 -s 192.168.20.1 -d 192.168.20.2 -j ACCEPT  # HTTP endpoint that advertises WireGuard endpoints for P2P
+sudo iptables -A INPUT -p icmp -j ACCEPT  # allow ping from WAN if desired
 sudo iptables -P INPUT DROP
 sudo apt install -y iptables-persistent
 sudo bash -c "iptables-save > /etc/iptables/rules.v4"
 ```
 
-Put the following script in /etc/wg-publisher/routes-up.sh on the public server:
+Put the following script in `/etc/wg-publisher/routes-up.sh` on the public server:
 
 ```bash
 #!/bin/bash
 set -e
-sudo ip rule add from 192.168.19.0/24 table 100 # this ensures 0.0.0.0/0 is routed to VPS if its comming from proxied clients.
-sudo ip rule add from 192.168.20.0/24 table 100
-sudo ip route add default dev wg0 table 100
+# route traffic from the proxied and P2P subnets via a separate routing table so their default goes out the WireGuard interface
+ip rule add from 192.168.19.0/24 table 100
+ip rule add from 192.168.20.0/24 table 100
+ip route add default dev wg0 table 100
 ```
 
-Put the following script in /etc/wg-publisher/routes-down.sh on the public server:
+Put the following script in `/etc/wg-publisher/routes-down.sh` on the public server:
 
 ```bash
 #!/bin/bash
-sudo ip rule del from 192.168.19.0/24 table 100
-sudo ip rule del from 192.168.20.0/24 table 100
-sudo ip route del default dev wg0 table 100
+set -e
+ip rule del from 192.168.19.0/24 table 100 || true
+ip rule del from 192.168.20.0/24 table 100 || true
+ip route del default dev wg0 table 100 || true
 ```
 
-Ensure `chmod +x /etc/wg-publisher/routes-up.sh` and `chmod +x /etc/wg-publisher/routes-down.sh`
+Ensure the scripts are executable:
 
-This ensures there is a proper isolation between the remote clients and correct routing for the proxied config to proxy all traffic back to the remote device.
+```bash
+sudo chmod +x /etc/wg-publisher/routes-up.sh /etc/wg-publisher/routes-down.sh
+```
 
-on the remote device you do something like as follow (edit to your interface names or add rules to restrict access of wg clients):
+These rules provide isolation between remote clients and ensure correct routing for proxied clients whose traffic should be proxied back to the remote device via the public server.
+
+On the remote device a minimal example (edit interface names and adjust rules to your needs):
 
 ```bash
 sudo bash -c 'echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf && sysctl -p'
+# Reject forwarding between wg clients by default
 sudo iptables -A FORWARD -i wg0 -o wg0 -j REJECT
+# Allow forwarding from wg0 to other interfaces
 sudo iptables -A FORWARD -i wg0 -j ACCEPT
+# Allow return traffic to wg0
 sudo iptables -A FORWARD -o wg0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+# Reject other forwarding to wg0
 sudo iptables -A FORWARD -o wg0 -j REJECT
 sudo iptables -P FORWARD DROP
+# NAT outgoing traffic on the remote device's uplink
 sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+# Basic INPUT rules
 sudo iptables -A INPUT -i lo -j ACCEPT
 sudo iptables -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
-sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT # if you have SSH with pubkey auth, e.g accessible over local network or over wireguard.
-sudo iptables -A INPUT -p udp --dport 51820 -j ACCEPT # we do not want that the server's firewall is uneccessary blocking inbound connections as well for wireguard
+sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT  # allow SSH with pubkey auth if needed
+sudo iptables -A INPUT -p udp --dport 51820 -j ACCEPT  # allow WireGuard
 sudo iptables -A INPUT -p icmp -j ACCEPT
 sudo iptables -P INPUT DROP
 sudo apt install -y iptables-persistent
 sudo bash -c "iptables-save > /etc/iptables/rules.v4"
 ```
+
+Adjust `eth0`, `wg0` and any CIDR ranges to match your topology. These examples aim to be minimal and opinionated; review them before deploying to production.
