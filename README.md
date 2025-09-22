@@ -230,3 +230,10 @@ Obviously you should use a trusted hosting provider for the public server, as th
 # License
 This project is licensed under MIT
 
+# Also interesting
+
+[wireguard-docs](https://github.com/pirate/wireguard-docs): Unofficial documentation for all kinds of wireguard setups
+
+[samyk/pwnat](https://github.com/samyk/pwnat): Works by sending udp packets to some fixed internet IP, and the client replying with ICMP TTL as if it was a router on the path to the host, to discover the client IP+port. Does not require a third server. Still has the issue that if you are behind symmetric NAT, then this will not succeed, and it requires a client application. Many routers will block this kind of ICMP hacking sadly.
+
+[manuels/wireguard-p2p](https://github.com/manuels/wireguard-p2p): Alternative in case you do not want multi peers in your wireguard config, but instead want a simple signaling server, and you accept that clients also need a script (making mobile phones difficult). 
