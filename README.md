@@ -187,6 +187,8 @@ The port should be unique across all your clients to prevent port collision reso
 
 In many setups you have a second router (like a cellular modem or a home/tenant router) connected to the ISP/building's CG‑NAT infrastructure — meaning you have double NAT: your router and the ISP's router. You probably discovered that adding a port forward rule in your router has no effect because your ISP's firewall is blocking inbound connections; hence you ended up at this project. In that case it is still useful to add a port forward rule so your router does not block the inbound connection, and in case the client is already on the internal network (see Shared router below) it can directly reach the remote device's WireGuard.
 
+If your local router is doing port randomization like on pfSense, then DISABLE that for all inbound/outbound wireguard connections, as this will break the P2P connectivity.
+
 WireGuard is generally safe to open to WAN or untrusted networks, so you usually do not need to worry about that. It is also important that you ALLOW the WireGuard port inbound on the remote device.
 
 ## Shared (CG-NAT) router
