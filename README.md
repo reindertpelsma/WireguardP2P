@@ -5,7 +5,7 @@ This project provides a simple python script to directly connect to your device 
 
 If the client IP and server IP are known in advance you can hardcode them both and use [these steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection, but that does not allow your client to roam for example between your home network, company's wifi and cellular. This python project dynamically discovers the client IP + port using a third server (the public server) allowing the client to roam between betworks.
 
-It stands out of any other P2P implementation like [manuels/wireguard-p2p](https://github.com/manuels/wireguard-p2p) as it does not require installing extra software on the client beside the already widely cross platform compatible wireguard client, it just uses some simple wireguard config tricks on the client. This makes the setup on the clients far easier.
+It stands out of any other P2P implementation like [manuels/wireguard-p2p](https://github.com/manuels/wireguard-p2p) as it does not require installing extra software on the client beside the already widely cross platform compatible wireguard client, it just uses some simple wireguard config tricks on the client. This makes the setup on the clients far easier. There is also no third party [STUN](https://en.wikipedia.org/wiki/STUN) server involved, the third server just uses wireguard.
 
 You still need the linux server (public server) with inbound connections (like a small VPS in the cloud) but it will only be used for bootstrapping the connection.
 
