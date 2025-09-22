@@ -3,9 +3,15 @@ Setting up a wireguard connection (VPN) to your device(s) is difficult if its be
 
 This project provides a simple python script to directly connect to your device using [UDP Port Punching](https://en.wikipedia.org/wiki/UDP_hole_punching).
 
-If the client IP and server IP are known in advance you can hardcode them both and use [these steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection, but that does not allow your client to roam for example between your home network, company's wifi and cellular. This small python project of just 270 lines dynamically discovers the client IP + port using a third server (the public server), like a small VPS hosted in the cloud, allowing the client to roam between betworks.
+If the client IP and server IP are known in advance you can hardcode them both and use [these steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection, but that does not allow your client to roam for example between your home network, company's wifi and cellular. 
 
-It stands out of any other P2P implementation like [manuels/wireguard-p2p](https://github.com/manuels/wireguard-p2p) as it does not require installing extra software on the client beside the already widely cross platform compatible wireguard client, it just uses only a simple wireguard config on clients. This makes the setup on the clients far easier. There is also no third party [STUN](https://en.wikipedia.org/wiki/STUN) protocol involved, the third server just uses wireguard simplifying the setup. This has the advantage that you can always use your public server peer as both for P2P signaling/bootstrap and as relay server in case P2P fails.
+It stands out of any other P2P implementation like [manuels/wireguard-p2p](https://github.com/manuels/wireguard-p2p) because:
+
+1. It does not require installing extra software on the client beside the already widely cross platform compatible wireguard client, it just uses only a simple wireguard config on clients. This makes the setup on the clients far easier. This allows you to use the config for example on your phone where installing python is hard.
+2. There is also no third party [STUN](https://en.wikipedia.org/wiki/STUN) protocol involved, the third server just uses wireguard simplifying the setup. This has the advantage that you can always use your public server peer as both for P2P signaling/bootstrap and as relay server in case P2P fails simultaneously.
+3. It keeps the roaming feature of wireguard, so if your client moves from network to network, then the connection will automatically re-establish. No need to click reconnect or launch a helper script, everything is done automatically for you.
+4. The python script is just 270 lines and you do not need any other tool than wireguard, some linux commands, and python, far simpler than some commercial bloated P2P protocols like WebRTC.
+5. All edge cases you might encounter to setup your P2P connection are well explained in this extensive README
 
 # How it works
 The server that accepts inbound connection is called in this project the Public server as its firewall is open to the internet, and the device behind firewall is called the Remote Device as its the device you want to connect to. 
@@ -133,6 +139,8 @@ It is easy to add multiple remote devices with a shared public server. In that c
 ## IP of remote device
 For this setup to work the public IP of the remote device (i.e what is my IP) and public server should be both static and put in the client's wireguard configs. If it is not the case, you should use a DDNS service like [DuckDNS](https://www.duckdns.org/) or host your own and use this domain name instead of the IPs. The DDNS service is generally used when you have inbound connections, but in this case they are also useful for the remote device.
 
+If you use DDNS, you need to ensure a daemon is launched on the remote device (and optionally the public server if its IP is also dynamic) to ensure the DNS record stays fresh whenever a network reset/reboot occurs that usually trigger IP changes.
+
 ## Roaming
 If the client moves from network to network (i.e its IP update), the P2P connection will be temporarily lost. To ensure a stable connecition, keeping the keepalive intervals short to 10 seconds is crucial on both ends. If a client does move, the endpoint to the public server will update due to wireguard's roaming feature. The public server will record this new endpoint and send this endpoint to the remote device which will re-send a Wireguard handshake packet to the new endpoint, and as the client is also continously sending out packets every few seconds, a P2P connection will be re-established automatically.
 
@@ -158,7 +166,15 @@ It is recommended to hardcode a listening port on the client. This ensures that 
 It should be unique across all your clients, to prevent port collision resolution if two clients are behind the same NAT firewall, as this will prevent the P2P to succeed on both clients simultaneously. Set the ListeningPort in clients for example to 3600+peer index, so 3601, 3602 etc.
 .
 ## Shared router
-If the user and the remote device share on router, and this router blocks connections between internal networks, then the P2P will fails. For example if both devices are connected to the same cellular network or CG-NAT. In that case the proxied config is the only solution.
+If the client and the remote device share the same NAT/firewall router (like you are connected to the same company's infrastructure, Wi-Fi, Cellular network or behind the same CG-NAT), and this router blocks connections between internal networks, then the P2P may fail. It is important to check if direct connections using for example the local IP of the remote device on the shared network is possible, as many do not firewall connections between internal networks explicitly. If this fails, then a regular P2P connection may just succeed even if both the client and remote device share a public IP, because the remote device uses a different listening port as the client and by testing if the port punching works through Hairpin nat.
+
+In the case your client connects/roams to a local network of the remote device, like for example the Wi-Fi of the cellular modem you manage but that modem is behind CG-NAT of the provider, you have the ability to route your tunnel directly to the device without ever using the ISP infrastructure. This results in better reliability but also better performance. There are two main options for this if you control the local network's router, both have an advantage and a drawback:
+
+1. If you use a DDNS service as explained above, usually if your device is connected to something like cellular, you can put a static local DNS record in the local network's router. The client will resolve to the local IP of the device inside the network and connect directly, fast and simple. If the client roams to an external network, it resolves to the public IP and uses P2P. The problem is that the DNS resolve to the IP only takes place when you click connect, or `wg-quick up` as the wireguard kernel module or userspace libraries do not understand DNS and only endpoint IPs, this makes the roaming not seamless.
+
+2. The second elegant option is to put a DNAT rule in the local network's, so that connections to the remote device public IP:wireguard is directly routed to the device instead of sending it out to the cellular network. The problem is that the IP of the remote device may change which is hard to put in a DNAT rule, but the advantage is that this will ensure in a seamless roaming experience without clicking re-connect. Many implementations do support putting a hostname in the DNAT rule, meaning you can still use your DDNS name. Plus the IP assigned to your modem usually only changes when the network resets or your network router reboots.
+
+In some cases with a shared router that blocks internal connections the proxied config is the only solution.
 
 ## Double persistent keepalive and stale peers
 In regular wireguard to a server with inbound connections persistent keepalive of the recommended 25 seconds is only used if a client needs to receive packets (like inbound connections to client or long lived TCP sessions) after the tunnel went silent for more than 30 seconds (default UDP timeout), and only the client has to send these keepalive packets usually as the server should not send packets anymore if a client disconnects from the server. 
@@ -194,6 +210,9 @@ git clone https://github.com/libpcpnatpmp/libpcpnatpmp.git
 Don't forget to allow the port in the client's device, if it has a firewall. 
 
 You do not need to hardcode the client's endpoint IP+port in the remote device's config as this will be auto-discovered. One problem that may occur is that the source port to the public server may have been randomized, meaning that the auto discovered endpoint is incorrect. The simple solution if you are behind Symmetric NAT is to create a seperate peer like 'my laptop at home' where the endpoint IP+port is hardcoded in the remote device, and the peer is added to `--exclude-peer`, don't forget that server side PersistentKeepalive is still relevant. Then you can keep an additional 2 configs for P2P and proxied/relayed in case you roam to other networks. Future work could include an update endpoint that a client can invoke to set its endpoint correctly and a python script optionally for the client to automatically test port forwarding through UPnP, nat-pmp or PCP.
+
+## Most important: keep the relayed/proxied fallback
+In any case you attempt P2P have the relayed/proxied config to the public server always as fallback ready all times, because you know for sure that this one will always work. This means you never lose access to your remote device, but it might impact performance and bandwidth if its routed to a third server.
 
 # Security
 All traffic is end-to-end encrypted with Wireguard between clients and both the public server and the remote device, and UDP punch hole packets are only sent when authorized wireguard clients connect. The python API server to discover endpoints should be ONLY listening on the wireguard interface and ONLY accept connections over the wireguard tunnel from the remote device and should not be exposed to the internet. It is indeed run over http:// but this is not an issue if the connection between the public server and remote device is already encrypted by wireguard. In case someone else on the network could reach this API server, a token.txt is placed to guard access.
