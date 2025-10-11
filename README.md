@@ -163,7 +163,7 @@ The time it takes to re‑establish a connection depends on the poll interval of
 
 While this setup provides great performance and reliability when it works, it does not always guarantee a P2P connection from every kind of network. That is because NAT behavior is not strictly standardized and many implementations exist — many of which are classified by [STUN](https://en.wikipedia.org/wiki/STUN).
 
-All modern networks have a stateful firewall that either blocks or allows inbound connections for wireguard. Networks with a stateful firewall that blocks inbound connections always fall in the category: restricted NAT, symmtric firewall or symmetric NAT, because this applies to 99% of the cases, you can basically ignore the other irrelevant legacy cases of 'full cone NAT' or 'restricted cone NAT' that allowed new connection states to be created by changing ports or IPs.
+All modern networks have a stateful firewall that either blocks or allows inbound connections for wireguard. Networks with a stateful firewall that blocks inbound connections always fall in the category: port restricted NAT, symmtric firewall or symmetric NAT, because this applies to 99% of the cases, you can basically ignore the other irrelevant legacy cases of 'full cone NAT' or 'restricted cone NAT' that allowed new connection states to be created by changing ports or IPs.
 
 If the user is behind symmetric NAT (i.e. the external source port is randomized for every different UDP connection state), then P2P will fail as the endpoint python registers does not match. It is not possible to establish P2P with symmetric NAT other than brute‑forcing ports, which is impractical.
 
