@@ -6,7 +6,7 @@ This project provides a simple Python script to directly connect to your device 
 
 If the client IP and server IP are known in advance you can hardcode them both and use [these steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection, but that does not allow your client to roam — for example between your home network, company Wi‑Fi and cellular.
 
-This project stands out from other P2P implementations like [manuels/wireguard-p2p](https://github.com/manuels/wireguard-p2p) because:
+This project is different from other P2P implementations because:
 
 1. It does not require installing extra software on the client besides the already widely cross‑platform compatible WireGuard client — it only uses a simple WireGuard config on clients. This makes the setup on clients far easier and allows you to use the config on devices where installing Python is hard (for example phones).
 2. No third‑party [STUN](https://en.wikipedia.org/wiki/STUN) protocol is involved; the public server just uses WireGuard, simplifying the setup. This has the advantage that you can always use your public server peer both for P2P signaling/bootstrap and as a relay server in case P2P fails.
@@ -26,7 +26,7 @@ Clients create an outbound WireGuard connection to the public server using their
 
 ---
 
-# Setup
+# Example setup
 
 First generate WireGuard private/public key pairs for the public server, all remote devices and all clients. Use persistent keepalive to ensure the tunnel stays alive behind firewalls. Then use the following config templates.
 
@@ -163,15 +163,11 @@ The time it takes to re‑establish a connection depends on the poll interval of
 
 While this setup provides great performance and reliability when it works, it does not always guarantee a P2P connection from every kind of network. That is because NAT behavior is not strictly standardized and many implementations exist — many of which are classified by [STUN](https://en.wikipedia.org/wiki/STUN).
 
-Networks that block inbound connections with a stateful firewall tracking the whole connection tuple and have NAT are actually always port restricted NAT or symmetric NAT, because this applies to 99% of the cases, you can basically ignore the irrelevant legacy cases of 'full cone NAT' or 'restricted cone NAT'. Port restricted NAT is now just called 'normal NAT' as it keeps source ports consistent, and symmetric NAT is the nat that randomizes source ports, the only two distinct nats that matter. Some older networks do not have NAT at all and still assigns public IPv4s to clients directly, sometimes even to Wi-Fi clients, while still blocking inbound connections. This is classified as a symmetric firewall (which should not be confused with symmetric NAT) and is even more permissive/better than the port restricted NAT, P2P using this script very likely succeeds on these networks (its even tested).
+All modern networks have a stateful firewall that either blocks or allows inbound connections for wireguard. Networks with a stateful firewall that blocks inbound connections always fall in the category: restricted NAT, symmtric firewall or symmetric NAT, because this applies to 99% of the cases, you can basically ignore the other irrelevant legacy cases of 'full cone NAT' or 'restricted cone NAT' that allowed new connection states to be created by changing ports or IPs.
 
-If the user is behind symmetric NAT (i.e. the external source port is randomized for every different UDP connection state), then the published endpoint of the user will not match the endpoint the remote device needs, and the P2P will fail. It is not possible to establish P2P with symmetric NAT other than brute‑forcing ports, which is impractical. Symmetric NAT is relatively rare: most implementations will attempt to use the same external source port as chosen by the client (normal NAT), unless it conflicts with an existing state and then they may randomize due to port collision resolution (for example Linux's netfilter which many routers use under the hood). A few implementations always do port randomization by default (e.g. pfSense).
+If the user is behind symmetric NAT (i.e. the external source port is randomized for every different UDP connection state), then P2P will fail as the endpoint python registers does not match. It is not possible to establish P2P with symmetric NAT other than brute‑forcing ports, which is impractical.
 
-Cellular networks have the highest chance to use symmetric NAT, enterprise networks have a moderate chance, while home networks have a very low chance. In the Netherlands symmetric NAT seems to be rare on cellular. To learn more, [read this paper](https://arxiv.org/pdf/2311.04658).
-
-The only extremely rare case where WebRTC P2P works and this project does not is if the targeted remote device (the client doesn't matter) is behind a NAT that does port randomization but is still a restricted port‑cone NAT (the randomized ports are not per connection). This is because the client hardcodes the WireGuard port of the remote device.
-
-Clients usually only fail to connect if they're behind true symmetric NAT. There is no restriction that the source port of the client should be the same as the one in the config, or that if a port is allocated inbound connections to that port should be allowed (like full‑cone NAT), only that it's consistent for both the UDP connection to the remote device and to the public server. This means that P2P works for clients up to port‑restricted NAT.
+Clients usually only fail to connect if they're behind true symmetric NAT. There is no restriction that the source port of the client should be the same as the one in the config, or that if a port is allocated inbound connections to that port should be allowed (like full‑cone NAT), only that it's consistent for both the UDP connection to the remote device and to the public server. This means that P2P works for clients up to port‑restricted NAT. There is however a restriction that the port the remote device selected remains the same on the public internet, but on most Normal nats this is the case.
 
 ## IPv6
 
@@ -185,11 +181,13 @@ The port should be unique across all your clients to prevent port collision reso
 
 ## Don't let your firewall be the second problem
 
-In many setups you have a second router (like a cellular modem or a home/tenant router) connected to the ISP/building's CG‑NAT infrastructure — meaning you have double NAT: your router and the ISP's router. You probably discovered that adding a port forward rule in your router has no effect because your ISP's firewall is blocking inbound connections; hence you ended up at this project. In that case it is still useful to add a port forward rule so your router does not block the inbound connection, and in case the client is already on the internal network (see Shared router below) it can directly reach the remote device's WireGuard.
+First ensure that the Wireguard port is open on the remote device for inbound connections, you do not want an unnecessary firewall here.
+
+In many setups you have a second router (like a cellular modem or a home/tenant router) connected to the ISP/building's CG‑NAT infrastructure — meaning you have double NAT: your router and the ISP's router. In that case it is still useful to add a port forward rule so your router does not block the inbound connection, and in case the client is already on the internal network (see Shared router below) it can directly reach the remote device's WireGuard.
 
 If your local router is doing port randomization like on pfSense, then DISABLE that for all inbound/outbound wireguard connections, as this will break the P2P connectivity.
 
-WireGuard is generally safe to open to WAN or untrusted networks, so you usually do not need to worry about that. It is also important that you ALLOW the WireGuard port inbound on the remote device.
+WireGuard is generally safe to open to WAN or untrusted networks, so you usually do not need to worry about that. 
 
 ## Shared (CG-NAT) router
 
