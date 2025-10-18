@@ -17,6 +17,7 @@ Normally, you could hardcode the client and server IPs and follow [these manual 
 4. **Lightweight and transparent.** The script is only ~270 lines of Python, using nothing beyond WireGuard and standard Linux tools — far simpler than bloated P2P frameworks like WebRTC.
 6. **Extensively documented.** Every edge case and NAT scenario is clearly explained in this README. Wireguard P2P works almost everywhere where regular NAT traversal like Bittorrenting or WebRTC works, there are only a few rare exceptions.
 7. **Secure** You keep the full security of Wireguard end to end encryption to all your devices
+8. **Always works** NAT traversal does not always work, but don't worry, if you follow this setup then falling back to a [relayed connection]((https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) is just only one click on the wireguard client.
 
 # How it works
 
