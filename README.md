@@ -1,20 +1,21 @@
-# WireguardP2P
+# WireGuardP2P — Seamless Peer-to-Peer WireGuard Connections Behind NAT
 
-Setting up a WireGuard connection (VPN) to your device(s) is difficult if they're behind NAT or a firewall that blocks inbound connections. This often happens when your device is behind a network you don't control (for example CG‑NAT used by many cellular providers).
+Setting up a WireGuard VPN can be a headache when your devices are behind NATs or firewalls that block incoming connections — a common scenario with networks you don’t control, such as those using CG-NAT (typical for many mobile or ISP setups).
 
-This project provides a simple Python script to directly connect to your device using [UDP hole punching](https://en.wikipedia.org/wiki/UDP_hole_punching).
+**WireGuardP2P** solves that problem with a simple Python script that enables direct, peer-to-peer WireGuard connections using [UDP hole punching](https://en.wikipedia.org/wiki/UDP_hole_punching).
+No complex relay setups, no third-party signaling servers — just a lightweight and reliable way to make your devices talk directly.
 
-If the client IP and server IP are known in advance you can hardcode them both and use [these steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection, but that does not allow your client to roam — for example between your home network, company Wi‑Fi and cellular.
+Normally, you could hardcode the client and server IPs and follow [these manual steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection. But that breaks down when your client moves between networks — like switching between home Wi-Fi, office Wi-Fi, and cellular — since WireGuard endpoints aren’t stable.
 
-This project is different from other P2P implementations because:
+**WireGuardP2P automates all of that:** it dynamically updates the WireGuard configuration on your remote device so you only have to click *Connect* on your client. The rest happens automatically.
 
-1. It does not require installing extra software on the client besides the already widely cross‑platform compatible WireGuard client — it only uses a simple WireGuard config on clients. This makes the setup on clients far easier and allows you to use the config on devices where installing Python is hard (for example phones).
-2. No third‑party [STUN](https://en.wikipedia.org/wiki/STUN) protocol is involved; the public server just uses WireGuard, simplifying the setup. This has the advantage that you can always use your public server peer both for P2P signaling/bootstrap and as a relay server in case P2P fails.
-3. It preserves WireGuard's roaming feature — if your client moves between networks the connection will automatically re‑establish. No need to click reconnect or launch a helper script; everything is done automatically.
-4. The Python script is small (\~270 lines) and you do not need any other tool than WireGuard, a few Linux commands, and Python — far simpler than some bloated commercial P2P protocols like WebRTC. In almost all cases where WebRTC P2P works, this simple setup will work as well. See the NAT Types section.
-5. All edge cases you might encounter when setting up your P2P connection are well explained in this extensive README.
+# Why WireGuardP2P is Different
 
----
+1. **Zero extra software on clients.** You only need the standard WireGuard client — no Python or helper tools required. Works even on devices like phones.
+2. **No STUN or external signaling servers.** The public peer doubles as a simple WireGuard server for bootstrap and fallback, keeping your setup minimal and predictable.
+3. **Full WireGuard roaming support.** Move between networks freely — connections re-establish automatically without reconnecting or restarting anything.
+4. **Lightweight and transparent.** The script is only ~270 lines of Python, using nothing beyond WireGuard and standard Linux tools — far simpler than bloated P2P frameworks like WebRTC.
+5. **Extensively documented.** Every edge case and NAT scenario is clearly explained in this README.
 
 # How it works
 
