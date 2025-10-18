@@ -7,12 +7,12 @@ No complex relay setups, no third-party signaling servers — just a lightweight
 
 Normally, you could hardcode the client and server IPs and follow [these manual steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection. But that breaks down when your client moves between networks — like switching between home Wi-Fi, office Wi-Fi, and cellular — since WireGuard endpoints aren’t stable.
 
-**WireGuardP2P automates all of that:** it dynamically updates the WireGuard configuration on your remote device so you only have to click *Connect* on your client. The rest happens automatically.
+**WireGuardP2P automates all of that:** it dynamically updates the WireGuard configuration on your remote device so you only have to click *Connect* on your client. The rest happens automatically. You only need a small public server to help bootstrap the conection.
 
 # Why WireGuardP2P is Different
 
 1. **Zero extra software on clients.** You only need the standard WireGuard client — no Python or helper tools required. Works even on devices like phones.
-2. **No STUN or external signaling servers.** The public peer doubles as a simple WireGuard server for bootstrap and fallback, keeping your setup minimal and predictable.
+2. **No STUN or external signaling servers.** The public server doubles as a simple WireGuard server for bootstrap and fallback, keeping your setup minimal and predictable.
 3. **Full WireGuard roaming support.** Move between networks freely — connections re-establish automatically without reconnecting or restarting anything.
 4. **Lightweight and transparent.** The script is only ~270 lines of Python, using nothing beyond WireGuard and standard Linux tools — far simpler than bloated P2P frameworks like WebRTC.
 6. **Extensively documented.** Every edge case and NAT scenario is clearly explained in this README. Wireguard P2P works almost everywhere where regular NAT traversal like Bittorrenting or WebRTC works, there are only a few rare exceptions.
@@ -20,7 +20,7 @@ Normally, you could hardcode the client and server IPs and follow [these manual 
 
 # How it works
 
-The server that accepts inbound connections is called the *public server* in this project (its firewall is open to the internet). The device behind a firewall is called the *remote device* — it's the device you want to connect to.
+The device behind a firewall is called the *remote device* — it's the device you want to connect to. The server that accepts inbound connections is called the *public server* in this project (its firewall is open to the internet) and is used to help you connect to your remote device.
 
 WireGuard has the unique ability that a client can connect to multiple peers simultaneously. Every client has one peer to the public server and a peer for every remote device a P2P connection needs to be set up with.
 
