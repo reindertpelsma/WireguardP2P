@@ -15,7 +15,8 @@ Normally, you could hardcode the client and server IPs and follow [these manual 
 2. **No STUN or external signaling servers.** The public peer doubles as a simple WireGuard server for bootstrap and fallback, keeping your setup minimal and predictable.
 3. **Full WireGuard roaming support.** Move between networks freely — connections re-establish automatically without reconnecting or restarting anything.
 4. **Lightweight and transparent.** The script is only ~270 lines of Python, using nothing beyond WireGuard and standard Linux tools — far simpler than bloated P2P frameworks like WebRTC.
-5. **Extensively documented.** Every edge case and NAT scenario is clearly explained in this README.
+6. **Extensively documented.** Every edge case and NAT scenario is clearly explained in this README. Wireguard P2P works almost everywhere where regular NAT traversal like Bittorrenting or WebRTC works, there only a few rare exceptions.
+7. **Secure** You keep the full security of Wireguard end to end encryption to all your devices
 
 # How it works
 
