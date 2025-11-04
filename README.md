@@ -5,14 +5,14 @@ Setting up a WireGuard VPN can be a headache when your devices are behind NATs o
 **WireGuardP2P** solves that problem with a simple Python script that enables direct, peer-to-peer WireGuard connections using [UDP hole punching](https://en.wikipedia.org/wiki/UDP_hole_punching).
 No complex relay setups, no third-party signaling servers — just a lightweight and reliable way to make your devices talk directly.
 
-Normally, you could hardcode the client and server IPs and follow [these manual steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection. But that breaks down when your client moves between networks — like switching between home Wi-Fi, office Wi-Fi, and cellular — since WireGuard endpoints aren’t stable.
+In an ideal world where the client has a static IP you can establish a simple direct P2P by hardcoding it [these manual steps](https://github.com/pirate/wireguard-docs?tab=readme-ov-file#NAT-to-NAT-Connections) to establish a P2P connection. But that obvioously breaks down in the real world where clients constantly move between networks — like switching between home Wi-Fi, work Wi-Fi, and cellular — so WireGuard endpoints aren’t stable.
 
-**WireGuardP2P automates all of that:** it dynamically updates the WireGuard configuration on your remote device so you only have to click *Connect* on your client. The rest happens automatically. You only need a small public server to help bootstrap the conection.
+**WireGuardP2P automates the P2P:** it dynamically updates the WireGuard configuration on your remote device so you only have to click *Connect* on your client and will dynamically establish a P2P to the correct client IP. You only need a small public server to help bootstrap the conection.
 
 # Why WireGuardP2P is Different
 
 1. **Zero extra software on clients.** You only need the standard WireGuard client — no Python or helper tools required. Works even on devices like phones.
-2. **No STUN or external signaling servers.** The public server doubles as a simple WireGuard server for bootstrap and fallback, keeping your setup minimal and predictable.
+2. **No STUN or external signaling servers.** The public server doubles as a simple WireGuard server for bootstrap and as a relay fallback, keeping your setup minimal and predictable.
 3. **Full WireGuard roaming support.** Move between networks freely — connections re-establish automatically without reconnecting or restarting anything.
 4. **Lightweight and transparent.** The script is only ~270 lines of Python, using nothing beyond WireGuard and standard Linux tools — far simpler than bloated P2P frameworks like WebRTC.
 6. **Extensively documented.** Every edge case and NAT scenario is clearly explained in this README. Wireguard P2P works almost everywhere where regular NAT traversal like Bittorrenting or WebRTC works, there are only a few rare exceptions.
@@ -164,13 +164,16 @@ The time it takes to re‑establish a connection depends on the poll interval of
 
 ## NAT types
 
-While this setup provides great performance and reliability when it works, it does not always guarantee a P2P connection from every kind of network. That is because NAT behavior is not strictly standardized and many implementations exist — many of which are classified by [STUN](https://en.wikipedia.org/wiki/STUN).
+While this setup provides great performance and reliability when it works, it does not always guarantee a P2P connection from every kind of network. The setup works on most networks but not all of them. That is because NAT and firewall behavior is not strictly standardized and many implementations exist.
 
-All modern networks have a stateful firewall that either blocks or allows inbound connections for wireguard. Networks with a stateful firewall that blocks inbound connections always fall in the category: port restricted NAT, symmtric firewall or symmetric NAT, because this applies to 99% of the cases, you can basically ignore the other irrelevant legacy cases of 'full cone NAT' or 'restricted cone NAT' that allowed new connection states to be created by changing ports or IPs.
+There are 3 simple conditions that must be met for it to work:
+1. the public server must allow inbound connections from clients, remote devices must be able to make outbound connection (attempt) to the client IPs and the client must be able to make an outbound connection (attempt) to the remote device IP
+2. the Wireguard client port the public server and remote devices see must be consistent from their side. It does not have to be the Wireguard ListenPort the client originally selected
+3. The Wireguard Port the client see of the remote device must be the ListenPort the remote device specified.
 
-If the user is behind symmetric NAT (i.e. the external source port is randomized for every different UDP connection state), then P2P will fail as the endpoint python registers does not match. It is not possible to establish P2P with symmetric NAT other than brute‑forcing ports, which is impractical.
+As soon as these 3 conditions are met the P2P will work. 
 
-Clients usually only fail to connect if they're behind true symmetric NAT. There is no restriction that the source port of the client should be the same as the one in the config, or that if a port is allocated inbound connections to that port should be allowed (like full‑cone NAT), only that it's consistent for both the UDP connection to the remote device and to the public server. This means that P2P works for clients up to port‑restricted NAT. There is however a restriction that the port the remote device selected remains the same on the public internet, but on most Normal nats this is the case.
+Almost all modern networks use a stateful firewall that tracks the whole tuple of a TCP connection (source IP, source port, dest IP, dest port), according to [https://en.wikipedia.org/wiki/STUN](STUN) classification such networks can only be port restricted NAT (sometimes reported as 'Normal NAT'), symmetric NAT or a symmetric firewall. As symmetric NAT is the only connection type that breaks the port consistency due to port randomization makes it the only nat type where P2P fails. The connection also works on less restrictive NAT types found in legacy networks.
 
 ## IPv6
 
@@ -182,15 +185,15 @@ It is recommended to hardcode a listening port on the client. This ensures that 
 
 The port should be unique across all your clients to prevent port collision resolution if two clients are behind the same NAT/firewall; collisions will prevent P2P from succeeding on both clients simultaneously. Set the `ListenPort` on clients for example to `3600 + peer_index`, so `3601`, `3602`, etc.
 
-## Don't let your firewall be the second problem
+## Don't let firewalls you control be an obstacle
 
 First ensure that the Wireguard port is open on the remote device for inbound connections, you do not want an unnecessary firewall here.
 
 In many setups you have a second router (like a cellular modem or a home/tenant router) connected to the ISP/building's CG‑NAT infrastructure — meaning you have double NAT: your router and the ISP's router. In that case it is still useful to add a port forward rule so your router does not block the inbound connection, and in case the client is already on the internal network (see Shared router below) it can directly reach the remote device's WireGuard.
 
-If your local router is doing port randomization like on pfSense, then DISABLE that for all inbound/outbound wireguard connections, as this will break the P2P connectivity.
+If your local router is doing port randomization like on pfSense, then DISABLE that for all inbound/outbound wireguard connections, as this will break the P2P connectivity. The general idea is to apply the least restrictive firewall as possible for the Wireguard port.
 
-WireGuard is generally safe to open to WAN or untrusted networks, so you usually do not need to worry about that. 
+The Wireguard protocol is heavily battle tested and very secure against the public internet and other hostile networks. This means that you do should not care about the security or firewall implementation of your untrusted ISP for the VPN, even if the ISP's firewall gets compromised or abruptly lifted in the future. Remember, an open ISP firewall is the best for your wireguard connectivity.
 
 ## Shared (CG-NAT) router
 
@@ -214,39 +217,16 @@ In P2P both outbound connection states are needed on the firewalls of the client
 
 To prevent sending packets to clients that have been disconnected for a while, a timer (default 120 seconds since the last WireGuard handshake) will purge the PersistentKeepalive, as WireGuard handshakes are usually every 2 minutes.
 
-## Reliable port forward
-
-To establish a more reliable connection you can attempt to port forward on the client side. You probably already checked that port forward was not possible on the remote device networks; otherwise you'd already have inbound connections. Sometimes it is possible to port forward on the client's side.
-
-This is especially useful if the client primarily connects from a specific network (like a home network); doing so will not remove the ability to roam to other networks. You can hardcode a port forward in your home router using the router's web interface provided by the ISP. If you do not have access to it, check if a port forward is possible through UPnP, NAT‑PMP or PCP, as many home routers expose one of those protocols and sometimes enterprise networks do too.
-
-Example if the client port is `36906`:
-
-```bash
-# UPnP (miniupnpc)
-sudo apt install miniupnpc
-upnpc -a 192.168.1.100 36906 36906 UDP      # add
-upnpc -l                                   # list
-upnpc -d 36906 UDP                         # delete
-
-# NAT-PMP
-sudo apt install natpmpc
-natpmpc -a 36906 36906 udp 3600            # add 1-hour mapping
-natpmpc -a 36906 36906 udp 0               # remove
-
-# PCP (build libpcpnatpmp and use CLI)
-git clone https://github.com/libpcpnatpmp/libpcpnatpmp.git
-# build per INSTALL.md, then (example)
-./cli-client/pcp-client map --proto udp --internal 192.168.1.100 --internal-port 36906 --external-port 36906 --lifetime 3600
-```
-
-Don't forget to allow the port in the client's firewall.
-
-You do not need to hardcode the client's endpoint IP+port in the remote device's config as this will be auto‑discovered. One problem that may occur is that the source port to the public server may have been randomized, meaning that the auto‑discovered endpoint is incorrect. The simple solution if you are behind symmetric NAT is to create a separate peer (for example `my-laptop-at-home`) where the endpoint IP+port is hardcoded in the remote device, and add that peer to `--exclude-peer`. Don't forget that server‑side PersistentKeepalive is still relevant. Then you can keep an additional two configs for P2P and proxied/relayed use in case you roam to other networks. Future work could include an update endpoint that a client can invoke to set its endpoint correctly and an optional Python script for the client to automatically test port forwarding through UPnP, NAT‑PMP or PCP.
-
 ## Most important: keep the relayed/proxied fallback
 
 Always keep the relayed/proxied config to the public server ready as a fallback because you know for sure that this will work. This means you never lose access to your remote device, though it might impact performance and bandwidth if traffic is routed through a third server.
+
+## Idea: Symmetric NAT P2P using ICMP hack
+This setup does not work with symmetric NAT but an idea based on [pwnat](https://github.com/samyk/pwnat) may work on some networks.
+
+The problem with Symmetric NAT is that the source port on WAN is not consistent between two UDP flows, so the remote device cannot use the discovered source port by the public helper server to punch a hole and brute forcing the ports is impractical.
+
+An idea to discover this port is to send as client a ICMP TTL packet that embeds the attempted IP packet send to the remote device to the public server in the ICMP payload. NAT routers will rewrite the embedded UDP datagram packet of a TTL to the WAN source port and usually do not check the destination IP the TTL packet is sent to. This makes it possible for the server possibly to discover the correct source port of the original UDP flow between the two devices. This does obviously require the client to have a small script to send such packet, but such script would then only be necessary on Symmetric NAT networks before attempting the relay backup.
 
 ---
 
